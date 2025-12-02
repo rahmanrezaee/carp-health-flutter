@@ -629,3 +629,86 @@ Map<String, dynamic> _$WorkoutSummaryToJson(WorkoutSummary instance) =>
       'totalEnergyBurned': instance.totalEnergyBurned,
       'totalSteps': instance.totalSteps,
     };
+
+ClinicalRecord _$ClinicalRecordFromJson(
+  Map<String, dynamic> json,
+) => ClinicalRecord(
+  uuid: json['uuid'] as String,
+  clinicalType: $enumDecode(_$ClinicalRecordTypeEnumMap, json['clinical_type']),
+  startDate: DateTime.parse(json['start_date'] as String),
+  endDate: DateTime.parse(json['end_date'] as String),
+  displayName: json['display_name'] as String?,
+  sourceName: json['source_name'] as String?,
+  sourceBundleIdentifier: json['source_bundle_identifier'] as String?,
+  fhirResource: json['fhir_resource'] == null
+      ? null
+      : FHIRResource.fromJson(json['fhir_resource'] as Map<String, dynamic>),
+);
+
+Map<String, dynamic> _$ClinicalRecordToJson(ClinicalRecord instance) =>
+    <String, dynamic>{
+      'uuid': instance.uuid,
+      'clinical_type': _$ClinicalRecordTypeEnumMap[instance.clinicalType]!,
+      'start_date': instance.startDate.toIso8601String(),
+      'end_date': instance.endDate.toIso8601String(),
+      'display_name': ?instance.displayName,
+      'source_name': ?instance.sourceName,
+      'source_bundle_identifier': ?instance.sourceBundleIdentifier,
+      'fhir_resource': ?instance.fhirResource,
+    };
+
+const _$ClinicalRecordTypeEnumMap = {
+  ClinicalRecordType.allergyIntolerance: 'allergyIntolerance',
+  ClinicalRecordType.condition: 'condition',
+  ClinicalRecordType.coverage: 'coverage',
+  ClinicalRecordType.immunization: 'immunization',
+  ClinicalRecordType.labResult: 'labResult',
+  ClinicalRecordType.medication: 'medication',
+  ClinicalRecordType.procedure: 'procedure',
+  ClinicalRecordType.vitalSign: 'vitalSign',
+};
+
+FHIRResource _$FHIRResourceFromJson(Map<String, dynamic> json) => FHIRResource(
+  identifier: json['identifier'] as String,
+  fhirVersion: $enumDecodeNullable(_$FHIRVersionEnumMap, json['fhir_version']),
+  resourceType: $enumDecodeNullable(
+    _$FHIRResourceTypeEnumMap,
+    json['resource_type'],
+  ),
+  sourceURL: json['source_u_r_l'] as String?,
+  data: json['data'] as Map<String, dynamic>?,
+  rawData: json['raw_data'] as String?,
+);
+
+Map<String, dynamic> _$FHIRResourceToJson(FHIRResource instance) =>
+    <String, dynamic>{
+      'identifier': instance.identifier,
+      'fhir_version': ?_$FHIRVersionEnumMap[instance.fhirVersion],
+      'resource_type': ?_$FHIRResourceTypeEnumMap[instance.resourceType],
+      'source_u_r_l': ?instance.sourceURL,
+      'data': ?instance.data,
+      'raw_data': ?instance.rawData,
+    };
+
+const _$FHIRVersionEnumMap = {
+  FHIRVersion.dstu2: 'dstu2',
+  FHIRVersion.r4: 'r4',
+  FHIRVersion.unknown: 'unknown',
+};
+
+const _$FHIRResourceTypeEnumMap = {
+  FHIRResourceType.allergyIntolerance: 'allergyIntolerance',
+  FHIRResourceType.condition: 'condition',
+  FHIRResourceType.coverage: 'coverage',
+  FHIRResourceType.diagnosticReport: 'diagnosticReport',
+  FHIRResourceType.documentReference: 'documentReference',
+  FHIRResourceType.immunization: 'immunization',
+  FHIRResourceType.medication: 'medication',
+  FHIRResourceType.medicationDispense: 'medicationDispense',
+  FHIRResourceType.medicationOrder: 'medicationOrder',
+  FHIRResourceType.medicationRequest: 'medicationRequest',
+  FHIRResourceType.medicationStatement: 'medicationStatement',
+  FHIRResourceType.observation: 'observation',
+  FHIRResourceType.procedure: 'procedure',
+  FHIRResourceType.unknown: 'unknown',
+};

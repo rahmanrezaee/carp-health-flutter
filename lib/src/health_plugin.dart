@@ -1706,4 +1706,105 @@ class Health {
       HealthWorkoutActivityType.OTHER,
     }.contains(type);
   }
+
+  /// Get clinical records from HealthKit
+  ///
+  /// **iOS Only**: Clinical records are only available on iOS 12+
+  /// and require explicit user authorization.
+  ///
+  /// Parameters:
+  /// * [types] - List of [ClinicalRecordType] to fetch
+  /// * [startDate] - Start date of the records
+  /// * [endDate] - End date of the records
+  Future<List<ClinicalRecord>> getClinicalRecords({
+    required List<ClinicalRecordType> types,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    if (!Platform.isIOS) {
+      return [];
+    }
+
+    final args = <String, dynamic>{
+      'types': types.map((e) => e.key).toList(),
+      'startTime': startDate.millisecondsSinceEpoch,
+      'endTime': endDate.millisecondsSinceEpoch,
+    };
+
+    try {
+      final result = await _channel.invokeMethod('getClinicalRecords', args);
+      if (result is List) {
+        return result
+            .map(
+              (e) =>
+                  ClinicalRecord.fromJson(Map<String, dynamic>.from(e as Map)),
+            )
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('$runtimeType - Exception in getClinicalRecords(): $e');
+      return [];
+    }
+  }
+
+  /// Request access to clinical records.
+  ///
+  /// **iOS Only**: Clinical records are only available on iOS 12+.
+  ///
+  /// Parameters:
+  /// * [types] - List of [ClinicalRecordType] to request access to.
+  ///
+  /// Returns true if the request was successful (user responded), false otherwise.
+  /// Note that like [requestAuthorization], this does not guarantee that the user
+  /// granted access, only that the request was presented.
+  Future<bool> requestClinicalAuthorization(
+    List<ClinicalRecordType> types,
+  ) async {
+    if (!Platform.isIOS) {
+      return false;
+    }
+
+    final args = <String, dynamic>{'types': types.map((e) => e.key).toList()};
+
+    try {
+      final result = await _channel.invokeMethod<bool>(
+        'requestClinicalAuthorization',
+        args,
+      );
+      return result ?? false;
+    } catch (e) {
+      debugPrint(
+        '$runtimeType - Exception in requestClinicalAuthorization(): $e',
+      );
+      return false;
+    }
+  }
+
+  /// Check if the app has permission to access clinical records.
+  ///
+  /// **iOS Only**: Clinical records are only available on iOS 12+.
+  ///
+  /// Parameters:
+  /// * [types] - List of [ClinicalRecordType] to check permissions for.
+  ///
+  /// Returns true if all types are authorized, false otherwise.
+  Future<bool> hasClinicalPermissions(List<ClinicalRecordType> types) async {
+    if (!Platform.isIOS) {
+      return false;
+    }
+
+    final args = <String, dynamic>{'types': types.map((e) => e.key).toList()};
+
+    try {
+      final result = await _channel.invokeMethod<bool>(
+        'hasClinicalPermissions',
+        args,
+      );
+      return result ?? false;
+    } catch (e) {
+      debugPrint('$runtimeType - Exception in hasClinicalPermissions(): $e');
+      return false;
+    }
+  }
 }

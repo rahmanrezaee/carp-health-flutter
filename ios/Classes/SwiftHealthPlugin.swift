@@ -50,6 +50,12 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
         )
     }()
     
+    // Clinical records reader (iOS 12+)
+    @available(iOS 12.0, *)
+    private lazy var clinicalRecordReader: HealthClinicalRecordReader = {
+        return HealthClinicalRecordReader(healthStore: healthStore)
+    }()
+    
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(
             name: "flutter_health", binaryMessenger: registrar.messenger())
@@ -173,6 +179,33 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
             } catch {
                 result(FlutterError(code: "DELETE_ERROR",
                                     message: "Error deleting data by UUID: \(error.localizedDescription)",
+                                    details: nil))
+            }
+            
+        case "getClinicalRecords":
+            if #available(iOS 12.0, *) {
+                clinicalRecordReader.getClinicalRecords(call: call, result: result)
+            } else {
+                result(FlutterError(code: "NOT_SUPPORTED",
+                                    message: "Clinical Records are only available on iOS 12 and later",
+                                    details: nil))
+            }
+            
+        case "requestClinicalAuthorization":
+            if #available(iOS 12.0, *) {
+                clinicalRecordReader.requestClinicalAuthorization(call: call, result: result)
+            } else {
+                result(FlutterError(code: "NOT_SUPPORTED",
+                                    message: "Clinical Records are only available on iOS 12 and later",
+                                    details: nil))
+            }
+            
+        case "hasClinicalPermissions":
+            if #available(iOS 12.0, *) {
+                clinicalRecordReader.hasClinicalPermissions(call: call, result: result)
+            } else {
+                result(FlutterError(code: "NOT_SUPPORTED",
+                                    message: "Clinical Records are only available on iOS 12 and later",
                                     details: nil))
             }
             

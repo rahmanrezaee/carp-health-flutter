@@ -8,6 +8,7 @@ The plugin supports:
 
 - handling permissions to access health data using the `hasPermissions`, `requestAuthorization`, `revokePermissions` methods.
 - reading health data using the `getHealthDataFromTypes` method.
+- reading clinical records on iOS using the `getClinicalRecords` method.
 - writing health data using the `writeHealthData` method.
 - writing workouts using the `writeWorkout` method.
 - writing meals on iOS (Apple Health) & Android using the `writeMeal` method.
@@ -373,6 +374,67 @@ data by UUID: HealthDataPoint -
     deviceModel: null
 ```
 > Assuming that the `uuid` and `type` are coming from your database.
+
+
+### Clinical Records (iOS only)
+
+The plugin supports fetching clinical records from HealthKit on iOS (iOS 12+). Clinical records contain health information from healthcare providers in FHIR (Fast Healthcare Interoperability Resources) format.
+
+#### Authorization
+
+Accessing clinical records requires explicit user authorization. You must request permission for each clinical record type you want to access.
+
+```dart
+// define the types to get
+var types = [
+  ClinicalRecordType.allergyIntolerance,
+  ClinicalRecordType.condition,
+  ClinicalRecordType.immunization,
+  ClinicalRecordType.labResult,
+  ClinicalRecordType.medication,
+  ClinicalRecordType.procedure,
+  ClinicalRecordType.vitalSign,
+];
+
+// request authorization
+bool authorized = await health.requestClinicalAuthorization(types);
+```
+
+#### Fetching Records
+
+Once authorized, you can fetch clinical records using `getClinicalRecords`.
+
+```dart
+// fetch clinical records from the last month
+var now = DateTime.now();
+List<ClinicalRecord> records = await health.getClinicalRecords(
+  types: types,
+  startDate: now.subtract(Duration(days: 30)),
+  endDate: now,
+);
+
+// access the FHIR data
+for (var record in records) {
+  print('Clinical Record: ${record.displayName}');
+  print('FHIR Resource: ${record.fhirResource?.resourceType}');
+  print('FHIR JSON: ${record.fhirResource?.json}');
+}
+```
+
+#### Supported Types
+
+The following `ClinicalRecordType`s are supported:
+
+| **Clinical Record Type** | **Description** |
+| ------------------------ | --------------- |
+| `allergyIntolerance` | Allergies and intolerances to substances |
+| `condition` | Conditions, problems, or diagnoses |
+| `coverage` | Insurance coverage information |
+| `immunization` | Immunizations and vaccinations |
+| `labResult` | Laboratory results |
+| `medication` | Medications |
+| `procedure` | Medical procedures |
+| `vitalSign` | Vital signs observations |
 
 
 ## Data Types

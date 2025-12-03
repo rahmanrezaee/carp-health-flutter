@@ -88,7 +88,7 @@ enum HealthKitClinicalTypes {
     }
     
     // MARK: - HKFHIRResourceType Mapping
-    
+
     /// Maps FHIR resource type string to HKFHIRResourceType
     @available(iOS 14.0, *)
     static func fhirResourceType(for key: String) -> HKFHIRResourceType? {
@@ -99,14 +99,8 @@ enum HealthKitClinicalTypes {
             return .condition
         case FHIRResourceKeys.coverage:
             return .coverage
-        case FHIRResourceKeys.diagnosticReport:
-            return .diagnosticReport
-        case FHIRResourceKeys.documentReference:
-            return .documentReference
         case FHIRResourceKeys.immunization:
             return .immunization
-        case FHIRResourceKeys.medication:
-            return .medication
         case FHIRResourceKeys.medicationDispense:
             return .medicationDispense
         case FHIRResourceKeys.medicationOrder:
@@ -119,11 +113,32 @@ enum HealthKitClinicalTypes {
             return .observation
         case FHIRResourceKeys.procedure:
             return .procedure
+
+        // MARK: iOS 16.0+ Types
+        case FHIRResourceKeys.medication:
+            // Use rawValue to avoid "has no member" error if SDK is older
+            if #available(iOS 16.0, *) {
+                return HKFHIRResourceType(rawValue: "Medication")
+            }
+            return nil
+
+        // MARK: iOS 16.4+ Types
+        case FHIRResourceKeys.diagnosticReport:
+            if #available(iOS 16.4, *) {
+                return HKFHIRResourceType(rawValue: "DiagnosticReport")
+            }
+            return nil
+        case FHIRResourceKeys.documentReference:
+            if #available(iOS 16.4, *) {
+                return HKFHIRResourceType(rawValue: "DocumentReference")
+            }
+            return nil
+
         default:
             return nil
         }
     }
-    
+
     /// Maps HKFHIRResourceType to FHIR resource type string
     @available(iOS 14.0, *)
     static func fhirResourceKey(for resourceType: HKFHIRResourceType) -> String? {
@@ -134,14 +149,8 @@ enum HealthKitClinicalTypes {
             return FHIRResourceKeys.condition
         case .coverage:
             return FHIRResourceKeys.coverage
-        case .diagnosticReport:
-            return FHIRResourceKeys.diagnosticReport
-        case .documentReference:
-            return FHIRResourceKeys.documentReference
         case .immunization:
             return FHIRResourceKeys.immunization
-        case .medication:
-            return FHIRResourceKeys.medication
         case .medicationDispense:
             return FHIRResourceKeys.medicationDispense
         case .medicationOrder:
@@ -154,13 +163,34 @@ enum HealthKitClinicalTypes {
             return FHIRResourceKeys.observation
         case .procedure:
             return FHIRResourceKeys.procedure
+
         default:
+            // Handle newer iOS versions dynamically using raw values
+            // This prevents compiler errors when checking for members like .medication
+
+            // Medication (iOS 16.0+)
+            if #available(iOS 16.0, *) {
+                if resourceType.rawValue == "Medication" {
+                    return FHIRResourceKeys.medication
+                }
+            }
+
+            // DiagnosticReport & DocumentReference (iOS 16.4+)
+            if #available(iOS 16.4, *) {
+                if resourceType.rawValue == "DiagnosticReport" {
+                    return FHIRResourceKeys.diagnosticReport
+                }
+                if resourceType.rawValue == "DocumentReference" {
+                    return FHIRResourceKeys.documentReference
+                }
+            }
+
             return nil
         }
     }
-    
+
     // MARK: - Helper Methods
-    
+
     /// Get HKClinicalType for a given Flutter clinical type key
     static func clinicalType(for key: String) -> HKClinicalType? {
         guard let identifier = clinicalTypeIdentifier(for: key) else {
@@ -168,7 +198,7 @@ enum HealthKitClinicalTypes {
         }
         return HKObjectType.clinicalType(forIdentifier: identifier)
     }
-    
+
     /// Get all supported clinical type identifiers
     static func allClinicalTypeIdentifiers() -> [HKClinicalTypeIdentifier] {
         return [
@@ -182,7 +212,7 @@ enum HealthKitClinicalTypes {
             .vitalSignRecord
         ]
     }
-    
+
     /// Get all supported clinical types
     static func allClinicalTypes() -> Set<HKClinicalType> {
         return Set(allClinicalTypeIdentifiers().compactMap { identifier in

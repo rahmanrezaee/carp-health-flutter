@@ -37,7 +37,7 @@ class HealthClinicalRecordReader {
         // DEBUG: Check status before querying
         for type in clinicalTypes {
             let status = healthStore.authorizationStatus(for: type)
-            print("HealthClinicalRecordReader: Status for \(type.identifier) is \(status.rawValue) (0=notDetermined, 1=denied, 2=authorized)")
+            NSLog("HealthClinicalRecordReader: Status for \(type.identifier) is \(status.rawValue) (0=notDetermined, 1=denied, 2=authorized)")
 
             if status == .notDetermined {
                 result(FlutterError(code: "AUTH_NOT_DETERMINED", message: "Authorization not determined for \(type.identifier). Did you enable the Capability in Apple Developer Portal?", details: nil))
@@ -74,13 +74,13 @@ class HealthClinicalRecordReader {
         // Clinical records are read-only, so toShare is always nil
         healthStore.requestAuthorization(toShare: nil, read: typesToRead) { success, error in
             if let error = error {
-                print("HealthClinicalRecordReader: Auth Error: \(error.localizedDescription)")
+                NSLog("HealthClinicalRecordReader: Auth Error: \(error.localizedDescription)")
                 result(FlutterError(code: "AUTH_ERROR", message: error.localizedDescription, details: nil))
                 return
             }
 
             // Success just means the prompt was presented (or suppressed), not that the user said yes.
-            print("HealthClinicalRecordReader: Request Auth Success: \(success)")
+            NSLog("HealthClinicalRecordReader: Request Auth Success: \(success)")
             result(success)
         }
     }
@@ -116,16 +116,22 @@ class HealthClinicalRecordReader {
         for type in types {
             group.enter()
 
-            let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        // FIX 1: Use 'nil' predicate to match Native behavior (Fetch ALL history)
+        // Alternatively, ensure your Flutter 'startDate' is set to 50 years ago.
+        let predicate: NSPredicate? = nil
+
             let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]) { _, samples, error in
 
                 lock.lock()
                 defer { lock.unlock() }
 
                 if let error = error {
-                    print("Error querying \(type.identifier): \(error)")
+                    NSLog("Error querying \(type.identifier): \(error)")
                     queryError = error
                 } else if let clinicalRecords = samples as? [HKClinicalRecord] {
+                // Debug log
+                NSLog("Found \(clinicalRecords.count) records for \(type.identifier)")
+
                     let formatted = clinicalRecords.compactMap { self.formatClinicalRecord($0) }
                     allRecords.append(contentsOf: formatted)
                 }
@@ -146,26 +152,22 @@ class HealthClinicalRecordReader {
     // MARK: - Formatter
 
     private func formatClinicalRecord(_ record: HKClinicalRecord) -> [String: Any]? {
-        var dict: [String: Any] = [:]
-        dict["uuid"] = record.uuid.uuidString
-        dict["startDate"] = Int64(record.startDate.timeIntervalSince1970 * 1000)
-        dict["endDate"] = Int64(record.endDate.timeIntervalSince1970 * 1000)
-        dict["displayName"] = record.displayName
-        dict["sourceName"] = record.sourceRevision.source.name
-        dict["sourceBundleIdentifier"] = record.sourceRevision.source.bundleIdentifier
+            var dict: [String: Any] = [:]
+            dict["uuid"] = record.uuid.uuidString
+            dict["startDate"] = Int64(record.startDate.timeIntervalSince1970 * 1000)
+            dict["endDate"] = Int64(record.endDate.timeIntervalSince1970 * 1000)
+            dict["displayName"] = record.displayName
+            dict["sourceName"] = record.sourceRevision.source.name
+            dict["sourceBundleIdentifier"] = record.sourceRevision.source.bundleIdentifier
 
-        // Fix: identifier is String, convert to HKClinicalTypeIdentifier
-        let typeID = HKClinicalTypeIdentifier(rawValue: record.clinicalType.identifier)
-        if let typeKey = HealthKitClinicalTypes.clinicalTypeKey(for: typeID) {
-            dict["clinicalType"] = typeKey
+            let typeID = HKClinicalTypeIdentifier(rawValue: record.clinicalType.identifier)
+            if let typeKey = HealthKitClinicalTypes.clinicalTypeKey(for: typeID) {
+                dict["clinicalType"] = typeKey
+            }
+
+
+            return dict
         }
-
-        if let fhirResource = record.fhirResource {
-            dict["fhirResource"] = extractFHIRData(from: fhirResource)
-        }
-
-        return dict
-    }
 
     private func extractFHIRData(from fhir: HKFHIRResource) -> [String: Any] {
         var dict: [String: Any] = [:]

@@ -108,10 +108,13 @@ class HealthClinicalRecordReader {
         for type in types {
             group.enter()
 
-            // No predicate → retrieves ALL FHIR clinical records
+            // 1. Create a predicate for the date range
+            let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+
+            // 2. Pass the predicate to the query
             let query = HKSampleQuery(
                 sampleType: type,
-                predicate: nil,
+                predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
             ) { _, samples, error in

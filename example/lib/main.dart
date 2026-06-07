@@ -32,18 +32,11 @@ class ClinicalRecordsScreen extends StatefulWidget {
   ClinicalRecordsScreenState createState() => ClinicalRecordsScreenState();
 }
 
-enum AppState {
-  INITIAL,
-  AUTHORIZED,
-  FETCHING_DATA,
-  DATA_READY,
-  NO_DATA,
-  ERROR,
-}
+enum AppState { initial, authorized, fetchingData, dataReady, noData, error }
 
 class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
   List<ClinicalRecord> _clinicalDataList = [];
-  AppState _state = AppState.INITIAL;
+  AppState _state = AppState.initial;
   String _statusMessage = "Press 'Authorize' to start.";
 
   late DateTime _startDate;
@@ -62,38 +55,43 @@ class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
     if (!Platform.isIOS) {
       setState(() {
         _statusMessage = "Clinical Records are only available on iOS.";
-        _state = AppState.ERROR;
+        _state = AppState.error;
       });
       return;
     }
 
-    setState(() => _statusMessage = "Requesting Authorization...");
+    setState(() => _statusMessage = "Checking Apple Health Records support...");
 
     try {
-      bool hasPermissions = await health.hasClinicalPermissions(
+      final supportsClinicalRecords = await health.supportsHealthRecords();
+      if (!supportsClinicalRecords) {
+        final locale = Platform.localeName;
+        setState(() {
+          _state = AppState.error;
+          _statusMessage =
+              "Apple Health Records are not available for the current HealthKit environment. Current locale: $locale. On a simulator, open the Health app and add one of Apple's sample Health Records accounts first. On a real iPhone, make sure Health Records is available for your region and that the Health app already has a connected provider or downloaded records.";
+        });
+        return;
+      }
+
+      setState(
+        () => _statusMessage = "Requesting Apple Health authorization...",
+      );
+
+      final requestCompleted = await health.requestClinicalAuthorization(
         ClinicalRecordType.values,
       );
 
-      bool authorized = false;
-
-      if (!hasPermissions) {
-        authorized = await health.requestClinicalAuthorization(
-          ClinicalRecordType.values,
-        );
-      } else {
-        authorized = true;
-      }
-
       setState(() {
-        _state = authorized ? AppState.AUTHORIZED : AppState.ERROR;
-        _statusMessage = authorized
-            ? "Authorization Granted!"
-            : "Authorization Denied or Cancelled.";
+        _state = requestCompleted ? AppState.authorized : AppState.error;
+        _statusMessage = requestCompleted
+            ? "Authorization request finished. If you allowed access in Apple Health, tap 'Fetch Data'."
+            : "Apple Health did not complete the authorization request. Check Health access in Settings and make sure Health Records are available on this device.";
       });
     } catch (error) {
       log("Exception in authorize: $error");
       setState(() {
-        _state = AppState.ERROR;
+        _state = AppState.error;
         _statusMessage = "Error during auth: $error";
       });
     }
@@ -120,7 +118,7 @@ class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
       setState(() {
         _startDate = picked.start;
         _endDate = picked.end;
-        if (_state == AppState.DATA_READY || _state == AppState.NO_DATA) {
+        if (_state == AppState.dataReady || _state == AppState.noData) {
           _statusMessage = "Date range updated. Press 'Fetch Data'.";
         }
       });
@@ -130,7 +128,7 @@ class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
   Future<void> fetchClinicalData() async {
     log('fetchClinicalData records.');
     setState(() {
-      _state = AppState.FETCHING_DATA;
+      _state = AppState.fetchingData;
       _statusMessage = "Fetching Clinical Records...";
     });
 
@@ -141,23 +139,25 @@ class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
         endDate: _endDate,
       );
 
-      final uniqueData =
-      data.fold<Map<String, ClinicalRecord>>({}, (map, record) {
-        map[record.uuid] = record;
-        return map;
-      }).values.toList();
+      final uniqueData = data
+          .fold<Map<String, ClinicalRecord>>({}, (map, record) {
+            map[record.uuid] = record;
+            return map;
+          })
+          .values
+          .toList();
 
       setState(() {
         _clinicalDataList = uniqueData;
-        _state = uniqueData.isEmpty ? AppState.NO_DATA : AppState.DATA_READY;
+        _state = uniqueData.isEmpty ? AppState.noData : AppState.dataReady;
         _statusMessage = uniqueData.isEmpty
-            ? "No records found between ${_formatDate(_startDate)} and ${_formatDate(_endDate)}."
+            ? "No accessible clinical records found between ${_formatDate(_startDate)} and ${_formatDate(_endDate)}."
             : "Found ${uniqueData.length} records.";
       });
     } catch (error) {
       log("Exception in fetchClinicalData: $error");
       setState(() {
-        _state = AppState.ERROR;
+        _state = AppState.error;
         _statusMessage = "Error fetching data: $error";
       });
     }
@@ -187,12 +187,15 @@ class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
                 const SizedBox(height: 10),
                 Container(
                   margin: const EdgeInsets.only(bottom: 10),
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade400)),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade400),
+                  ),
                   child: InkWell(
                     onTap: _selectDateRange,
                     child: Row(
@@ -200,19 +203,27 @@ class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.date_range,
-                                size: 20, color: Colors.blue),
+                            const Icon(
+                              Icons.date_range,
+                              size: 20,
+                              color: Colors.blue,
+                            ),
                             const SizedBox(width: 8),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text("Filter Time Range",
-                                    style: TextStyle(
-                                        fontSize: 10, color: Colors.grey)),
+                                const Text(
+                                  "Filter Time Range",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                                 Text(
                                   "${_formatDate(_startDate)}  ➔  ${_formatDate(_endDate)}",
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w600),
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ],
                             ),
@@ -231,9 +242,10 @@ class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
                       child: const Text("1. Authorize"),
                     ),
                     ElevatedButton(
-                      onPressed: (_state == AppState.AUTHORIZED ||
-                          _state == AppState.DATA_READY ||
-                          _state == AppState.NO_DATA)
+                      onPressed:
+                          (_state == AppState.authorized ||
+                              _state == AppState.dataReady ||
+                              _state == AppState.noData)
                           ? fetchClinicalData
                           : null,
                       child: const Text("2. Fetch Data"),
@@ -251,11 +263,11 @@ class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
   }
 
   Widget get _content {
-    if (_state == AppState.FETCHING_DATA) {
+    if (_state == AppState.fetchingData) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_state == AppState.DATA_READY) {
+    if (_state == AppState.dataReady) {
       return ListView.builder(
         itemCount: _clinicalDataList.length,
         itemBuilder: (context, index) {
@@ -269,7 +281,7 @@ class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Text(
-          _state == AppState.NO_DATA
+          _state == AppState.noData
               ? "No records found in this date range.\nTry expanding the date filter."
               : "Waiting for action...",
           textAlign: TextAlign.center,
@@ -303,8 +315,7 @@ class ClinicalRecordsScreenState extends State<ClinicalRecordsScreen> {
                 ),
                 if (record.fhirResource?.json != null) ...[
                   const SizedBox(height: 8),
-                  const Text("Raw Data:",
-                      style: TextStyle(color: Colors.grey)),
+                  const Text("Raw Data:", style: TextStyle(color: Colors.grey)),
                   Container(
                     padding: const EdgeInsets.all(8),
                     color: Colors.grey[100],

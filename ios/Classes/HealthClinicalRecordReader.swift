@@ -12,6 +12,10 @@ class HealthClinicalRecordReader {
 
     // MARK: - Flutter Entry
 
+    func supportsHealthRecords(call _: FlutterMethodCall, result: @escaping FlutterResult) {
+        result(healthStore.supportsHealthRecords())
+    }
+
     func getClinicalRecords(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard let arguments = call.arguments as? [String: Any],
               let typeKeys = arguments["types"] as? [String],
@@ -31,16 +35,13 @@ class HealthClinicalRecordReader {
             return
         }
 
-        // DEBUG
-        for type in clinicalTypes {
-            let status = healthStore.authorizationStatus(for: type)
-            NSLog("HealthClinicalRecordReader: Status \(type.identifier) = \(status.rawValue)")
-            if status == .notDetermined {
-                result(FlutterError(code: "AUTH_NOT_DETERMINED",
-                                    message: "Call requestClinicalAuthorization() first",
-                                    details: nil))
-                return
-            }
+        guard healthStore.supportsHealthRecords() else {
+            result(FlutterError(
+                code: "NOT_SUPPORTED",
+                message: "Clinical records are not available on this device or locale. Apple Health Records require a supported locale or existing downloaded records in the Health app.",
+                details: nil
+            ))
+            return
         }
 
         queryClinicalRecords(types: clinicalTypes, startDate: startDate, endDate: endDate) { records, error in
@@ -68,13 +69,24 @@ class HealthClinicalRecordReader {
             return
         }
 
+        guard healthStore.supportsHealthRecords() else {
+            result(FlutterError(
+                code: "NOT_SUPPORTED",
+                message: "Clinical records are not available on this device or locale. Apple Health Records require a supported locale or existing downloaded records in the Health app.",
+                details: nil
+            ))
+            return
+        }
+
         healthStore.requestAuthorization(toShare: nil, read: clinicalTypes) { success, error in
-            if let error = error {
-                NSLog("HealthClinicalRecordReader ERROR: \(error)")
-                result(FlutterError(code: "AUTH_ERROR", message: error.localizedDescription, details: nil))
-                return
+            DispatchQueue.main.async {
+                if let error = error {
+                    NSLog("HealthClinicalRecordReader ERROR: \(error)")
+                    result(FlutterError(code: "AUTH_ERROR", message: error.localizedDescription, details: nil))
+                    return
+                }
+                result(success)
             }
-            result(success)
         }
     }
 
@@ -85,14 +97,33 @@ class HealthClinicalRecordReader {
             return
         }
 
-        for key in typeKeys {
-            guard let type = HealthKitClinicalTypes.clinicalType(for: key) else { continue }
-            if healthStore.authorizationStatus(for: type) != .sharingAuthorized {
-                result(false)
-                return
+        let clinicalTypes = Set(typeKeys.compactMap { HealthKitClinicalTypes.clinicalType(for: $0) })
+
+        if clinicalTypes.isEmpty {
+            result(false)
+            return
+        }
+
+        guard healthStore.supportsHealthRecords() else {
+            result(false)
+            return
+        }
+
+        let readTypes = Set(clinicalTypes.map { $0 as HKObjectType })
+
+        healthStore.getRequestStatusForAuthorization(toShare: Set<HKSampleType>(), read: readTypes) { status, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    NSLog("HealthClinicalRecordReader permission status error: \(error)")
+                    result(false)
+                    return
+                }
+
+                // HealthKit does not expose a reliable "read granted" flag for queries.
+                // `.unnecessary` is the closest signal that the app has already requested access.
+                result(status == .unnecessary)
             }
         }
-        result(true)
     }
 
     // MARK: - Query
